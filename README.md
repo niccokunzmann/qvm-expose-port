@@ -12,6 +12,19 @@ E.g. you can run an http server in the `work` VM:
 
 Now, you can access the http server from the outside.
 
+Installation
+------------
+
+You can install the script by downloading it.
+
+    user@work$ wget https://raw.githubusercontent.com/niccokunzmann/qvm-expose-port/master/qvm-expose-port
+
+Copy it to dom0 and make it executable.
+
+    user@dom0$ qvm-run --pass-io work 'cat qvm-expose-port' > qvm-expose-port
+    user@dom0$ chmod +x qvm-expose-port
+    user@dom0$ sudo mv qvm-expose-port /usr/local/bin/
+
 Contributing
 ------------
 

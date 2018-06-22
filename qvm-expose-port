@@ -1,0 +1,236 @@
+#!/bin/bash
+#
+# Expose a port from a vm to the outside
+#
+
+set -e
+set -o pipefail
+
+# definitions
+
+FIREWALL_VM_NAME="sys-firewall"
+NET_VM_NAME="sys-net"
+PROTOCOL="tcp"
+
+# information
+
+REPOSITORY_URL="https://github.com/niccokunzmann/qvm-expose-port"
+PATCH_NOTICE="Please see the source code, provice feedback and patches here: $REPOSITORY_URL"
+
+# functions
+
+function help() {
+  echo "Help about qvm-export-port"
+  echo ""
+  echo "  qvm-expose-port -a VM_NAME PORT"
+  echo "    exposes a port of the VM to the outside"
+  echo ""
+  echo "  qvm-expose-port -d PORT"
+  echo "    removes access to the port from the outside"
+  echo ""
+  echo "  qvm-expose-port -l"
+  echo "    lists all the ports exposed"
+  echo ""
+  echo "  qvm-expose-port"
+  echo "    shows this help message"
+}
+
+function error() {
+  echo "ERROR: $@" >&2
+  exit 1
+}
+
+function debug() {
+  echo "DEBUG: $@" >&2
+}
+
+function get_rule_name_from_port_number() {
+  PORT="$1"
+
+  echo "QVM-EXPOSE-PORT-$1"
+}
+
+function list_ports() {
+  error "Listing exposed ports is not implemented. $PATCH_NOTICE"
+}
+
+function delete_port() {
+  error "Deleting exposed ports is not implemented. $PATCH_NOTICE"
+}
+
+function exit_if_empty() {
+  if [ -z "$@" ]; then
+    exit 1
+  fi
+}
+
+function info() {
+  echo "INFO: $@" >&2
+}
+
+function info_rule_exists() {
+  local VM_NAME="$1"
+  local PORT="$2"
+  info "A rule for port $PORT exists in the VM \"$VM_NAME\". You may want to run \"$0 -d $PORT\" to delete it and re-run this program."
+}
+
+function get_vm_ip() {
+  local VM_NAME="$1"
+
+  local VM_LISTING_LINE="`qvm-ls -n 2>>/dev/null | grep -E '^\\s*.?'"$VM_NAME"'.?\s*\|'`"
+  if [ -z "$VM_LISTING_LINE" ]; then
+    error "The VM \"$VM_NAME\" does not exist. Please check the name."
+  fi
+  if ! echo "$VM_LISTING_LINE" | grep -q "Running"; then
+    error "The VM \"$VM_NAME\" is not running. Please start the VM with \"qvm-start $VM_NAME\"."
+  fi
+  # assuming these headings for the ip entriess:
+  #  ip |    ip back | gateway/DNS
+  local VM_IP="`echo \"$VM_LISTING_LINE\" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n 1`"
+  debug "The VM named \"$VM_NAME\" has the IP \"$VM_IP\"."
+  echo "$VM_IP"
+}
+
+function vm() {
+  # shortcut for executing a command in a vm $VM_NAME
+  debug "Run in VM \"$VM_NAME\": $@"
+  echo "$@" | qvm-run --pass-io "$VM_NAME" 'sudo bash'
+  local exit_code="$?"
+  debug "    The exit code is $exit_code."
+  return "$exit_code"
+}
+
+function is_qubes_4() {
+  cat /etc/qubes-release | grep -q "R4"
+  return "$?"
+}
+
+function get_interfaces_of_vm() {
+  # remove the lo* and vif* interfaces
+  vm ls /sys/class/net | grep -vE '^lo|^vif'
+}
+
+function forward_port_in_vm() {
+  VM_NAME="$1"
+  local DESTINATION_IP="$2"
+  local PORT="$3"
+
+  local RULE_NAME="`get_rule_name_from_port_number \"$PORT\"`"
+
+  ## Service Routing ##
+
+  # Create a new firewall natting chain for my service
+  if vm iptables -t nat -N "$RULE_NAME"; then
+    # Add a natting rule if it did not exit (to avoid cluter if script executed multiple times)
+    vm iptables -t nat -A "$RULE_NAME" -j DNAT --to-destination "$DESTINATION_IP"
+  else
+    info_rule_exists "$VM_NAME" "$PORT"
+  fi
+
+  # if no prerouting rule exist for my service
+  if ! vm iptables -t nat -n -L PREROUTING | grep --quiet "$RULE_NAME"; then
+    # add a natting rule for the traffic (same reason)
+    for INTERFACE in `get_interfaces_of_vm`; do
+      debug "Configuring interface \"$INTERFACE\" of VM \"$VM_NAME\"."
+      #                                                                               -d "$DESTINATION_IP"
+      vm iptables -t nat -A PREROUTING -i "$INTERFACE" -p "$PROTOCOL" --dport "$PORT"                      -j "$RULE_NAME"
+    done
+  else
+    info_rule_exists "$VM_NAME" "$PORT"
+  fi
+
+  ## Service Filtering ##
+
+  # Create a new firewall filtering chain for my service
+  if vm iptables -N "$RULE_NAME"; then
+    # Add a filtering rule if it did not exit (to avoid cluter if script executed multiple times)
+    #                           -s 192.168.x.0/24
+    vm iptables -A "$RULE_NAME"                   -j ACCEPT
+  else
+    info_rule_exists "$VM_NAME" "$PORT"
+  fi
+
+  # If no forward rule exist for my service
+  if ! vm iptables -n -L FORWARD | grep --quiet "$RULE_NAME"; then
+    # add a forward rule for the traffic (same reason)
+    vm iptables -I FORWARD 2 -d "$DESTINATION_IP" -p tcp --dport "$PORT" -m conntrack --ctstate NEW -j "$RULE_NAME"
+  else
+    info_rule_exists "$VM_NAME" "$PORT"
+  fi
+
+  if is_qubes_4; then
+    debug "Qubes 4 is not tested and not implemented for this. Maybe it works. $PATCH_NOTICE"
+    # If not already present
+    #if ! vm nft -nn list table ip qubes-firewall | grep "tcp dport $PORT ct state new"; then
+    #  # Add a filtering rule
+    #  vm nft add rule ip qubes-firewall forward meta iifname eth0 ip daddr 10.137.0.x tcp dport 443 ct state new counter accept
+    #fi
+  fi
+}
+
+function allow_traffic_to_vm() {
+  VM_NAME="$1"
+  local VM_IP="$2"
+  local PORT="$3"
+
+  local RULE_NAME="`get_rule_name_from_port_number \"$PORT\"`"
+  
+  # Create a new firewall filtering chain for my service
+  if vm iptables -N "$RULE_NAME"; then
+    # Add a filtering rule if it did not exit (to avoid cluter if script executed multiple times)
+    vm iptables -A "$RULE_NAME" -j ACCEPT
+  else
+    info_rule_exists "$VM_NAME" "$PORT"
+  fi
+
+  # If no forward rule exist for my service
+  if ! vm iptables -n -L FORWARD | grep --quiet "$RULE_NAME"; then
+    # add a forward rule for the traffic (same reason)
+    vm iptables -I INPUT 5 -d "$VM_IP" -p tcp --dport "$PORT" -m conntrack --ctstate NEW -j "$RULE_NAME"
+  else
+    info_rule_exists "$VM_NAME" "$PORT"
+  fi
+
+}
+
+function expose_port() {
+  local TARGET_VM_NAME="$1"
+  local PORT="$2"
+
+  # check arguments
+  if ! echo "$PORT" | grep -qE '^[0-9]+$'; then
+    error "The port must be a number greater 0 and lower 65536, not \"$PORT\"."
+  fi
+
+  # get the vm ip address
+  local TARGET_VM_IP="`get_vm_ip \"$TARGET_VM_NAME\"`"
+  exit_if_empty "$TARGET_VM_IP"
+  local FIREWALL_VM_IP="`get_vm_ip \"$FIREWALL_VM_NAME\"`"
+  exit_if_empty "$FIREWALL_VM_IP"
+  local NET_VM_IP="`get_vm_ip \"$NET_VM_NAME\"`"
+  exit_if_empty "$NET_VM_IP"
+
+  # change the system
+  forward_port_in_vm "$NET_VM_NAME" "$FIREWALL_VM_IP" "$PORT"
+  forward_port_in_vm "$FIREWALL_VM_NAME" "$TARGET_VM_IP" "$PORT"
+  allow_traffic_to_vm "$TARGET_VM_NAME" "$TARGET_VM_IP" "$PORT"
+  
+}
+
+# parse arguments
+
+option="$1"
+
+if [ "$option" == "-l" ]; then
+  list_ports
+elif [ "$option" == "-d" ]; then
+  delete_port "$2"
+elif [ "$option" == "-a" ]; then
+  expose_port "$2" "$3"
+elif [ "$option" == "-h" ] || [ "$option" == "" ]; then
+  help
+else
+  help
+  exit 1
+fi
+exit 0

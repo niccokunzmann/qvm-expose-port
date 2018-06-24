@@ -37,6 +37,18 @@ contributing packages](https://www.qubes-os.org/doc/package-contributions/) to h
 If you like to contribute code, [sign your
 commits](https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work).
 
+Development Setup
+-----------------
+
+You can clone the repository using git after you [forked][fork] it.
+If you like to deploy it to dom0, run
+
+    qvm-run --pass-io <vm-name> 'cat qvm-expose-port/qvm-expose-port' > /usr/local/bin/qvm-expose-port
+
+If you have changed the script in dom0, run this to copy it back to the repository:
+
+    cat /usr/local/bin/qvm-expose-port | qvm-run --pass-io <vm-name> 'cat > qvm-expose-port/qvm-expose-port'
+
 Related Work
 ------------
 
@@ -44,4 +56,4 @@ Related Work
 
 [firewall-docs]: https://www.qubes-os.org/doc/firewall/
 [issues]: https://github.com/niccokunzmann/qvm-expose-port/issues
-
+[fork]: https://github.com/niccokunzmann/qvm-expose-port/fork

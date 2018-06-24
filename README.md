@@ -34,7 +34,8 @@ You can use the [issue tracker][issues] to get into contact.
 
 As this script can become a package, please see the [guidelines for
 contributing packages](https://www.qubes-os.org/doc/package-contributions/) to help with this.
-If you like to contribute code, sign your commits.
+If you like to contribute code, [sign your
+commits](https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work).
 
 Related Work
 ------------

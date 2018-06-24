@@ -81,7 +81,7 @@ function get_vm_ip() {
   if [ -z "$VM_LISTING_LINE" ]; then
     error "The VM \"$VM_NAME\" does not exist. Please check the name."
   fi
-  if ! echo "$VM_LISTING_LINE" | grep -q "Running"; then
+  if ! qvm-check --quiet --running "$VM_NAME" then
     error "The VM \"$VM_NAME\" is not running. Please start the VM with \"qvm-start $VM_NAME\"."
   fi
   # assuming these headings for the ip entriess:

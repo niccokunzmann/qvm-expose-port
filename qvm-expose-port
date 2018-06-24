@@ -96,7 +96,7 @@ function vm() {
   local VM_NAME="$1"
   shift
   debug "Run in VM \"$VM_NAME\": $@"
-  echo "$@" | qvm-run --pass-io "$VM_NAME" 'sudo -u root bash'
+  echo "$@" | qvm-run --pass-io -u root "$VM_NAME" 'bash'
   local exit_code="$?"
   debug "    The exit code is $exit_code."
   return "$exit_code"

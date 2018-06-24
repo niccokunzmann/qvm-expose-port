@@ -52,7 +52,9 @@ If you have changed the script in dom0, run this to copy it back to the reposito
 Related Work
 ------------
 
-[The documentation about the firewall][firewall-docs] was helpful to build this.
+- [The issue for this package](https://github.com/QubesOS/qubes-issues/issues/4028)
+- [The documentation about the firewall][firewall-docs] was helpful to build this.
+- [jpouellet/qvm-port-forward.sh](https://gist.github.com/jpouellet/d8cd0eb8589a5b9bf0c53a28fc530369)
 
 [firewall-docs]: https://www.qubes-os.org/doc/firewall/
 [issues]: https://github.com/niccokunzmann/qvm-expose-port/issues

@@ -94,7 +94,7 @@ function get_vm_ip() {
 function vm() {
   # shortcut for executing a command in a vm $VM_NAME
   debug "Run in VM \"$VM_NAME\": $@"
-  echo "$@" | qvm-run --pass-io "$VM_NAME" 'sudo bash'
+  echo "$@" | qvm-run --pass-io "$VM_NAME" 'sudo -u root bash'
   local exit_code="$?"
   debug "    The exit code is $exit_code."
   return "$exit_code"

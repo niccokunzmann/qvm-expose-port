@@ -32,6 +32,10 @@ This script is not at all complete.
 Please see if you can contribute and what is important to you.
 You can use the [issue tracker][issues] to get into contact.
 
+As this script can become a package, please see the [guidelines for
+contributing packages](https://www.qubes-os.org/doc/package-contributions/) to help with this.
+If you like to contribute code, sign your commits.
+
 Related Work
 ------------
 
